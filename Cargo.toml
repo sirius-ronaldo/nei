@@ -1,0 +1,12 @@
+[package]
+name = "nei"
+version = "0.0.1"
+edition = "2024"
+description = "NEI — Norton Editor Inspired"
+license = "0BSD"
+repository = "https://github.com/CHANGE-ME/nei"
+readme = "README.md"
+keywords = ["editor", "terminal", "tui", "retro", "linux"]
+categories = ["command-line-utilities", "text-editors"]
+
+[dependencies]

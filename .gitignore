@@ -1,0 +1,11 @@
+/target/
+*.swp
+*.swo
+*~
+.DS_Store
+.idea/
+.vscode/
+
+# Capturas do Norton Editor original usadas apenas como referência local.
+# Não devem ser versionadas no repositório do NEI.
+/docs/reference-images/
