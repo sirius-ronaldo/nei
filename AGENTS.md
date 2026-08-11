@@ -107,10 +107,12 @@ Implemente apenas a Sprint solicitada. Não antecipe funcionalidades de Sprints 
 A partir da Sprint 01, qualquer entrada em raw mode/alternate screen deve possuir caminho confiável de restauração do terminal, inclusive em erros previsíveis.
 
 ## 9. Regras de Codificação
-Codigo claro, objetivo e de boa qualidade. Acrescente comentários relevantes, objetivos, não muito verboso e necessários. Caso haja alguma decisão de código cuja decisão entre um código alternativo seja de difícil escolha comente a decisão no trecho de código.
+Código claro, objetivo e de boa qualidade. Acrescente comentários relevantes, objetivos,
+concisos e necessários, sempre escritos em português do Brasil (PT-BR). Caso haja uma
+decisão de código entre alternativas cuja escolha seja difícil, registre a decisão no
+trecho de código.
 
 ## 10. Licença
 
 O projeto usa SPDX `0BSD`. Não substituir a licença nem inserir cabeçalhos de licença obrigatórios em cada arquivo sem decisão explícita do mantenedor.
-
 
