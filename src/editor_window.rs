@@ -23,11 +23,20 @@ impl Viewport {
     }
 }
 
+#[derive(Clone)]
 pub struct EditorWindow {
     pub document: Document,
     pub cursor: Position,
     pub viewport: Viewport,
     pub name: String,
+    pub insert_mode: bool,
+    last_deletion: Option<DeletedText>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DeletedText {
+    position: Position,
+    text: String,
 }
 
 impl EditorWindow {
@@ -37,6 +46,8 @@ impl EditorWindow {
             cursor: Position::default(),
             viewport: Viewport::default(),
             name: name.into(),
+            insert_mode: true,
+            last_deletion: None,
         }
     }
 
@@ -114,6 +125,135 @@ impl EditorWindow {
         }
     }
 
+    pub fn toggle_insert_mode(&mut self) {
+        self.insert_mode = !self.insert_mode;
+    }
+
+    pub fn insert_char(&mut self, character: char) {
+        self.cursor = if self.insert_mode {
+            self.document
+                .insert_text(self.cursor, &character.to_string())
+        } else {
+            self.document.replace_char(self.cursor, character)
+        };
+    }
+
+    pub fn new_line(&mut self) {
+        self.cursor = self.document.insert_text(self.cursor, "\n");
+    }
+
+    pub fn backspace(&mut self) {
+        if self.cursor.column > 0 {
+            let start = Position {
+                line: self.cursor.line,
+                column: self.cursor.column - 1,
+            };
+            self.delete_range(start, self.cursor);
+        } else if self.cursor.line > 0 {
+            let start = Position {
+                line: self.cursor.line - 1,
+                column: self.document.line_length(self.cursor.line - 1),
+            };
+            self.delete_range(start, self.cursor);
+        }
+    }
+
+    pub fn delete(&mut self) {
+        let end = self.next_position(self.cursor);
+        self.delete_range(self.cursor, end);
+    }
+
+    pub fn delete_word_left(&mut self) {
+        let mut start = self.clone();
+        start.word_left();
+        self.delete_range(start.cursor, self.cursor);
+    }
+
+    pub fn delete_word_right(&mut self) {
+        let mut end = self.clone();
+        end.word_right();
+        self.delete_range(self.cursor, end.cursor);
+    }
+
+    pub fn delete_to_line_beginning(&mut self) {
+        self.delete_range(
+            Position {
+                line: self.cursor.line,
+                column: 0,
+            },
+            self.cursor,
+        );
+    }
+
+    pub fn delete_to_line_end(&mut self) {
+        self.delete_range(
+            self.cursor,
+            Position {
+                line: self.cursor.line,
+                column: self.document.line_length(self.cursor.line),
+            },
+        );
+    }
+
+    pub fn kill_line(&mut self) {
+        let line = self.cursor.line;
+        let start = if line + 1 < self.document.line_count() {
+            Position { line, column: 0 }
+        } else if line > 0 {
+            Position {
+                line: line - 1,
+                column: self.document.line_length(line - 1),
+            }
+        } else {
+            Position { line, column: 0 }
+        };
+        let end = if line + 1 < self.document.line_count() {
+            Position {
+                line: line + 1,
+                column: 0,
+            }
+        } else {
+            Position {
+                line,
+                column: self.document.line_length(line),
+            }
+        };
+        self.delete_range(start, end);
+    }
+
+    pub fn undelete(&mut self) {
+        if let Some(deleted) = self.last_deletion.take() {
+            self.cursor = self.document.insert_text(deleted.position, &deleted.text);
+            self.cursor = deleted.position;
+        }
+    }
+
+    fn delete_range(&mut self, start: Position, end: Position) {
+        if let Some(text) = self.document.delete_range(start, end) {
+            self.last_deletion = Some(DeletedText {
+                position: start,
+                text,
+            });
+            self.cursor = self.document.clamp(start);
+        }
+    }
+
+    fn next_position(&self, position: Position) -> Position {
+        if position.column < self.document.line_length(position.line) {
+            Position {
+                line: position.line,
+                column: position.column + 1,
+            }
+        } else if position.line + 1 < self.document.line_count() {
+            Position {
+                line: position.line + 1,
+                column: 0,
+            }
+        } else {
+            position
+        }
+    }
+
     fn home_if_empty_or_previous_line(&mut self) {
         if self.cursor.column == 0 && self.cursor.line > 0 {
             self.cursor.line -= 1;
@@ -178,5 +318,58 @@ mod tests {
         editor.page_up();
         editor.page_down();
         assert_eq!(editor.cursor.line, 1);
+    }
+
+    #[test]
+    fn insert_delete_and_single_undelete_work() {
+        let mut editor = EditorWindow::new(Document::from_text("abc"), "teste");
+        editor.cursor.column = 1;
+        editor.insert_char('X');
+        assert_eq!(editor.document.line(0), "aXbc");
+        editor.delete_word_left();
+        assert_eq!(editor.document.line(0), "bc");
+        editor.insert_char('Z');
+        editor.undelete();
+        assert_eq!(editor.document.line(0), "aXZbc");
+        editor.undelete();
+        assert_eq!(editor.document.line(0), "aXZbc");
+    }
+
+    #[test]
+    fn enter_and_backspace_join_lines() {
+        let mut editor = EditorWindow::new(Document::from_text("ab"), "teste");
+        editor.cursor.column = 1;
+        editor.new_line();
+        assert_eq!(editor.document.line_count(), 2);
+        editor.backspace();
+        assert_eq!(editor.document.line(0), "ab");
+        assert_eq!(editor.document.line_count(), 1);
+    }
+
+    #[test]
+    fn kill_line_removes_the_entire_line_and_can_be_undeleted() {
+        let mut editor =
+            EditorWindow::new(Document::from_text("primeira\nsegunda\nterceira"), "teste");
+        editor.cursor = Position { line: 1, column: 3 };
+        editor.kill_line();
+        assert_eq!(editor.document.line_count(), 2);
+        assert_eq!(editor.document.line(0), "primeira");
+        assert_eq!(editor.document.line(1), "terceira");
+        editor.undelete();
+        assert_eq!(editor.document.line_count(), 3);
+        assert_eq!(editor.document.line(1), "segunda");
+
+        editor.file_end();
+        editor.kill_line();
+        assert_eq!(editor.document.line_count(), 2);
+        assert_eq!(editor.document.line(1), "segunda");
+    }
+
+    #[test]
+    fn kill_only_line_leaves_an_empty_document_line() {
+        let mut editor = EditorWindow::new(Document::from_text("conteúdo"), "teste");
+        editor.kill_line();
+        assert_eq!(editor.document.line_count(), 1);
+        assert_eq!(editor.document.line(0), "");
     }
 }

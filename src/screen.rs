@@ -91,10 +91,15 @@ pub fn draw_editor(
 
     if height > 0 {
         let status = format!(
-            "Line={}    Col={}                  {}             Insert    WW=Off",
+            "Line={}    Col={}                  {}             {}    WW=Off",
             window.cursor.line + 1,
             window.cursor.column + 1,
-            window.name
+            window.name,
+            if window.insert_mode {
+                "Insert"
+            } else {
+                "Overwrite"
+            }
         );
         let status: String = status.chars().take(usize::from(width)).collect();
         execute!(stdout, MoveTo(0, height - 1), Print(status))?;

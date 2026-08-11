@@ -87,6 +87,7 @@ fn open_from_prompt(terminal: &mut TerminalGuard) -> io::Result<EditorWindow> {
 
 fn handle_key(editor: &mut EditorWindow, code: KeyCode, modifiers: KeyModifiers) {
     let control = modifiers.contains(KeyModifiers::CONTROL);
+    let alt = modifiers.contains(KeyModifiers::ALT);
     match (code, control) {
         (KeyCode::Left, true) => editor.word_left(),
         (KeyCode::Right, true) => editor.word_right(),
@@ -100,6 +101,17 @@ fn handle_key(editor: &mut EditorWindow, code: KeyCode, modifiers: KeyModifiers)
         (KeyCode::End, false) => editor.end(),
         (KeyCode::PageUp, _) => editor.page_up(),
         (KeyCode::PageDown, _) => editor.page_down(),
+        (KeyCode::Insert, false) => editor.toggle_insert_mode(),
+        (KeyCode::Enter, false) => editor.new_line(),
+        (KeyCode::Backspace, false) => editor.backspace(),
+        (KeyCode::Delete, false) => editor.delete(),
+        (KeyCode::Char('w'), true) => editor.delete_word_left(),
+        (KeyCode::Char('l'), true) => editor.delete_to_line_beginning(),
+        (KeyCode::Char('u'), true) => editor.undelete(),
+        (KeyCode::Char('w'), false) if alt => editor.delete_word_right(),
+        (KeyCode::Char('l'), false) if alt => editor.delete_to_line_end(),
+        (KeyCode::Char('k'), false) if alt => editor.kill_line(),
+        (KeyCode::Char(character), false) if !alt => editor.insert_char(character),
         _ => {}
     }
 }

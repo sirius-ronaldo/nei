@@ -11,12 +11,14 @@ pub struct Position {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Document {
     lines: Vec<String>,
+    pub modified: bool,
 }
 
 impl Document {
     pub fn empty() -> Self {
         Self {
             lines: vec![String::new()],
+            modified: false,
         }
     }
 
@@ -33,7 +35,10 @@ impl Document {
                 line.pop();
             }
         }
-        Self { lines }
+        Self {
+            lines,
+            modified: false,
+        }
     }
 
     pub fn from_path(path: &Path) -> io::Result<Self> {
@@ -59,6 +64,84 @@ impl Document {
             column: position.column.min(self.line_length(line)),
         }
     }
+
+    pub fn insert_text(&mut self, position: Position, text: &str) -> Position {
+        if text.is_empty() {
+            return self.clamp(position);
+        }
+        let mut content: Vec<char> = self.as_text().chars().collect();
+        let offset = self.position_to_offset(position);
+        let insertion: Vec<char> = text.chars().collect();
+        content.splice(offset..offset, insertion);
+        *self = Self::from_text(&content.iter().collect::<String>());
+        self.modified = true;
+        self.offset_to_position(offset + text.chars().count())
+    }
+
+    pub fn replace_char(&mut self, position: Position, character: char) -> Position {
+        let position = self.clamp(position);
+        let mut content: Vec<char> = self.as_text().chars().collect();
+        let offset = self.position_to_offset(position);
+        if offset < content.len() && content[offset] != '\n' {
+            content[offset] = character;
+        } else {
+            content.insert(offset, character);
+        }
+        *self = Self::from_text(&content.iter().collect::<String>());
+        self.modified = true;
+        Position {
+            line: position.line,
+            column: position.column + 1,
+        }
+    }
+
+    pub fn delete_range(&mut self, start: Position, end: Position) -> Option<String> {
+        let start = self.clamp(start);
+        let end = self.clamp(end);
+        let start_offset = self.position_to_offset(start);
+        let end_offset = self.position_to_offset(end);
+        if start_offset >= end_offset {
+            return None;
+        }
+        let mut content: Vec<char> = self.as_text().chars().collect();
+        let deleted: String = content[start_offset..end_offset].iter().collect();
+        content.drain(start_offset..end_offset);
+        *self = Self::from_text(&content.iter().collect::<String>());
+        self.modified = true;
+        Some(deleted)
+    }
+
+    fn as_text(&self) -> String {
+        self.lines.join("\n")
+    }
+
+    fn position_to_offset(&self, position: Position) -> usize {
+        let position = self.clamp(position);
+        self.lines
+            .iter()
+            .take(position.line)
+            .map(|line| line.chars().count() + 1)
+            .sum::<usize>()
+            + position.column
+    }
+
+    fn offset_to_position(&self, offset: usize) -> Position {
+        let mut remaining = offset;
+        for (line, text) in self.lines.iter().enumerate() {
+            let length = text.chars().count();
+            if remaining <= length {
+                return Position {
+                    line,
+                    column: remaining,
+                };
+            }
+            remaining -= length + 1;
+        }
+        self.clamp(Position {
+            line: self.line_count().saturating_sub(1),
+            column: usize::MAX,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -79,5 +162,22 @@ mod tests {
             document.clamp(Position { line: 9, column: 9 }),
             Position { line: 0, column: 4 }
         );
+    }
+
+    #[test]
+    fn edits_preserve_lines_and_mark_document_modified() {
+        let mut document = Document::from_text("ab\ncd");
+        document.insert_text(Position { line: 0, column: 1 }, "X\nY");
+        assert_eq!(document.line(0), "aX");
+        assert_eq!(document.line(1), "Yb");
+        assert!(document.modified);
+        assert_eq!(
+            document.delete_range(
+                Position { line: 0, column: 1 },
+                Position { line: 1, column: 1 }
+            ),
+            Some("X\nY".to_owned())
+        );
+        assert_eq!(document.line(0), "ab");
     }
 }
