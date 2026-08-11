@@ -1,6 +1,6 @@
 use std::io::{self, Stdout, Write};
 
-use crossterm::cursor::MoveTo;
+use crossterm::cursor::{MoveTo, Show};
 use crossterm::execute;
 use crossterm::style::{Attribute, Print, SetAttribute};
 use crossterm::terminal::{Clear, ClearType};
@@ -59,6 +59,60 @@ pub fn draw_opening_screen(stdout: &mut Stdout, size: (u16, u16)) -> io::Result<
         execute!(stdout, MoveTo(left, top + 5), Print(&border))?;
     }
 
+    stdout.flush()
+}
+
+use crate::editor_window::EditorWindow;
+
+pub fn draw_editor(
+    stdout: &mut Stdout,
+    window: &mut EditorWindow,
+    size: (u16, u16),
+) -> io::Result<()> {
+    let (width, height) = size;
+    let text_height = usize::from(height.saturating_sub(1));
+    window.update_viewport(usize::from(width), text_height);
+    execute!(stdout, MoveTo(0, 0), Clear(ClearType::All))?;
+
+    for row in 0..text_height {
+        let line_index = window.viewport.top_line + row;
+        if line_index >= window.document.line_count() {
+            break;
+        }
+        let visible: String = window
+            .document
+            .line(line_index)
+            .chars()
+            .skip(window.viewport.left_column)
+            .take(usize::from(width))
+            .collect();
+        execute!(stdout, MoveTo(0, row as u16), Print(visible))?;
+    }
+
+    if height > 0 {
+        let status = format!(
+            "Line={}    Col={}                  {}             Insert    WW=Off",
+            window.cursor.line + 1,
+            window.cursor.column + 1,
+            window.name
+        );
+        let status: String = status.chars().take(usize::from(width)).collect();
+        execute!(stdout, MoveTo(0, height - 1), Print(status))?;
+    }
+
+    if width > 0 && text_height > 0 {
+        let x = window
+            .cursor
+            .column
+            .saturating_sub(window.viewport.left_column)
+            .min(usize::from(width - 1));
+        let y = window
+            .cursor
+            .line
+            .saturating_sub(window.viewport.top_line)
+            .min(text_height - 1);
+        execute!(stdout, Show, MoveTo(x as u16, y as u16))?;
+    }
     stdout.flush()
 }
 

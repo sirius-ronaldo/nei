@@ -1,5 +1,7 @@
 mod app;
 mod cli;
+mod document;
+mod editor_window;
 mod screen;
 mod terminal;
 
