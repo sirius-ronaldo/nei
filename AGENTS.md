@@ -116,3 +116,11 @@ trecho de código.
 
 O projeto usa SPDX `0BSD`. Não substituir a licença nem inserir cabeçalhos de licença obrigatórios em cada arquivo sem decisão explícita do mantenedor.
 
+## 11. Changelog de Desenvolvimento
+
+O arquivo `docs/sprints/dev_changelog.md` deve ser usado como referência das Sprints implementadas.
+Ao iniciar uma nova Sprint, considere que todas as Sprints anteriores já foram implementadas.
+Adicione ao arquivo, caso ainda não conste, uma linha `SprintNN` para a Sprint atual, sem `ok`.
+Ao iniciar a Sprint seguinte, altere a linha da Sprint anterior para `SprintNN ok`.
+Sprints anteriores que ainda não constarem no arquivo devem ser adicionadas já no formato
+`SprintNN ok`. Nunca remova registros anteriores.
