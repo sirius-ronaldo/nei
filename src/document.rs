@@ -8,6 +8,12 @@ pub struct Position {
     pub column: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TextMatch {
+    pub start: usize,
+    pub length: usize,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Document {
     lines: Vec<String>,
@@ -149,6 +155,104 @@ impl Document {
         self.offset_to_position(offset)
     }
 
+    /// Procura um trecho sem ultrapassar o início/fim do documento.
+    pub fn find_text(
+        &self,
+        needle: &str,
+        from: usize,
+        forward: bool,
+        case_sensitive: bool,
+    ) -> Option<TextMatch> {
+        let needle: Vec<char> = needle.chars().collect();
+        if needle.is_empty() {
+            return None;
+        }
+        let haystack: Vec<char> = self.as_text().chars().collect();
+        if needle.len() > haystack.len() {
+            return None;
+        }
+        let last = haystack.len() - needle.len();
+        let matches = |start: usize| {
+            haystack[start..start + needle.len()]
+                .iter()
+                .zip(&needle)
+                .all(|(left, right)| {
+                    if case_sensitive {
+                        left == right
+                    } else {
+                        left.to_lowercase().to_string() == right.to_lowercase().to_string()
+                    }
+                })
+        };
+        if forward {
+            let start = from.min(last);
+            (start..=last)
+                .find(|&start| matches(start))
+                .map(|start| TextMatch {
+                    start,
+                    length: needle.len(),
+                })
+        } else {
+            let start = from.min(last);
+            (0..=start)
+                .rev()
+                .find(|&start| matches(start))
+                .map(|start| TextMatch {
+                    start,
+                    length: needle.len(),
+                })
+        }
+    }
+
+    pub fn replace_text(&mut self, found: TextMatch, replacement: &str) -> Position {
+        let start = self.position_at_offset(found.start);
+        let end = self.position_at_offset(found.start + found.length);
+        self.delete_range(start, end);
+        self.insert_text(start, replacement)
+    }
+
+    /// Insere quebras físicas a cada largura informada e devolve o mapa de offsets.
+    pub fn wrap_lines(&mut self, width: usize) -> Option<Vec<usize>> {
+        if width == 0 {
+            return None;
+        }
+        let original: Vec<char> = self.as_text().chars().collect();
+        let mut wrapped = String::new();
+        let mut offsets = vec![0; original.len() + 1];
+        let mut column = 0;
+        for (offset, character) in original.iter().copied().enumerate() {
+            offsets[offset] = wrapped.chars().count();
+            if character == '\n' {
+                wrapped.push(character);
+                column = 0;
+            } else {
+                let starts_word = !character.is_whitespace()
+                    && (offset == 0 || original[offset - 1].is_whitespace());
+                let word_length = if starts_word {
+                    original[offset..]
+                        .iter()
+                        .take_while(|character| !character.is_whitespace())
+                        .count()
+                } else {
+                    0
+                };
+                if starts_word && column > 0 && column + word_length > width {
+                    wrapped.push('\n');
+                    column = 0;
+                }
+                wrapped.push(character);
+                column += 1;
+            }
+        }
+        offsets[original.len()] = wrapped.chars().count();
+        if wrapped == self.as_text() {
+            return None;
+        }
+        *self = Self::from_text(&wrapped);
+        self.modified = true;
+        Some(offsets)
+    }
+
     pub fn as_text(&self) -> String {
         self.lines.join("\n")
     }
@@ -252,5 +356,51 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), "versão antiga");
         std::fs::remove_file(path).expect("original should be removed");
         std::fs::remove_file(backup).expect("backup should be removed");
+    }
+
+    #[test]
+    fn searches_utf8_forward_and_backward_without_circularity() {
+        let document = Document::from_text("Ação ação fim");
+        assert_eq!(
+            document.find_text("AÇÃO", 0, true, false),
+            Some(TextMatch {
+                start: 0,
+                length: 4
+            })
+        );
+        assert_eq!(
+            document.find_text("ação", 9, false, true),
+            Some(TextMatch {
+                start: 5,
+                length: 4
+            })
+        );
+        assert_eq!(document.find_text("não", 0, true, false), None);
+    }
+
+    #[test]
+    fn replacement_accepts_empty_text_and_changes_document() {
+        let mut document = Document::from_text("um dois dois");
+        let found = document.find_text("dois", 0, true, true).unwrap();
+        let cursor = document.replace_text(found, "");
+        assert_eq!(document.as_text(), "um  dois");
+        assert_eq!(cursor, Position { line: 0, column: 3 });
+        assert!(document.modified);
+    }
+
+    #[test]
+    fn physical_wrap_inserts_breaks_without_losing_text() {
+        let mut document = Document::from_text("abc defgh\ngh");
+        let offsets = document.wrap_lines(3).unwrap();
+        assert_eq!(document.as_text(), "abc \ndefgh\ngh");
+        assert_eq!(offsets[3], 3);
+        assert!(document.modified);
+    }
+
+    #[test]
+    fn physical_wrap_does_not_split_words() {
+        let mut document = Document::from_text("um dois tres");
+        document.wrap_lines(6);
+        assert_eq!(document.as_text(), "um \ndois \ntres");
     }
 }

@@ -31,6 +31,8 @@ pub struct EditorWindow {
     pub viewport: Viewport,
     pub name: String,
     pub insert_mode: bool,
+    pub word_wrap: bool,
+    word_wrap_width: Option<usize>,
     pub block: BlockMarkers,
     last_deletion: Option<DeletedText>,
 }
@@ -49,6 +51,8 @@ impl EditorWindow {
             viewport: Viewport::default(),
             name: name.into(),
             insert_mode: true,
+            word_wrap: false,
+            word_wrap_width: None,
             block: BlockMarkers::default(),
             last_deletion: None,
         }
@@ -130,6 +134,37 @@ impl EditorWindow {
 
     pub fn toggle_insert_mode(&mut self) {
         self.insert_mode = !self.insert_mode;
+    }
+
+    pub fn set_word_wrap(&mut self, enabled: bool, width: usize) {
+        if enabled {
+            self.word_wrap_width = Some(width);
+            let cursor_offset = self.document.offset_of(self.cursor);
+            let first_offset = self
+                .block
+                .first
+                .map(|position| self.document.offset_of(position));
+            let second_offset = self
+                .block
+                .second
+                .map(|position| self.document.offset_of(position));
+            if let Some(offsets) = self.document.wrap_lines(width) {
+                self.cursor = self
+                    .document
+                    .position_at_offset(offsets[cursor_offset.min(offsets.len() - 1)]);
+                self.block.first = first_offset.map(|offset| {
+                    self.document
+                        .position_at_offset(offsets[offset.min(offsets.len() - 1)])
+                });
+                self.block.second = second_offset.map(|offset| {
+                    self.document
+                        .position_at_offset(offsets[offset.min(offsets.len() - 1)])
+                });
+            }
+        } else {
+            self.word_wrap_width = None;
+        }
+        self.word_wrap = enabled;
     }
 
     pub fn set_block_marker(&mut self) {
@@ -214,6 +249,15 @@ impl EditorWindow {
         }
     }
 
+    /// Marca da posição atual até o fim da linha, sem incluir a quebra de linha.
+    pub fn mark_to_line_end(&mut self) {
+        self.block.first = Some(self.cursor);
+        self.block.second = Some(Position {
+            line: self.cursor.line,
+            column: self.document.line_length(self.cursor.line),
+        });
+    }
+
     pub fn find_next_marker(&mut self) {
         let Some(position) = [self.block.first, self.block.second]
             .into_iter()
@@ -233,10 +277,12 @@ impl EditorWindow {
         } else {
             self.document.replace_char(self.cursor, character)
         };
+        self.rewrap_if_enabled();
     }
 
     pub fn new_line(&mut self) {
         self.cursor = self.document.insert_text(self.cursor, "\n");
+        self.rewrap_if_enabled();
     }
 
     pub fn backspace(&mut self) {
@@ -355,6 +401,34 @@ impl EditorWindow {
         if self.cursor.column == 0 && self.cursor.line > 0 {
             self.cursor.line -= 1;
             self.cursor.column = self.document.line_length(self.cursor.line);
+        }
+    }
+
+    fn rewrap_if_enabled(&mut self) {
+        let Some(width) = self.word_wrap_width else {
+            return;
+        };
+        let cursor_offset = self.document.offset_of(self.cursor);
+        let first_offset = self
+            .block
+            .first
+            .map(|position| self.document.offset_of(position));
+        let second_offset = self
+            .block
+            .second
+            .map(|position| self.document.offset_of(position));
+        if let Some(offsets) = self.document.wrap_lines(width) {
+            self.cursor = self
+                .document
+                .position_at_offset(offsets[cursor_offset.min(offsets.len() - 1)]);
+            self.block.first = first_offset.map(|offset| {
+                self.document
+                    .position_at_offset(offsets[offset.min(offsets.len() - 1)])
+            });
+            self.block.second = second_offset.map(|offset| {
+                self.document
+                    .position_at_offset(offsets[offset.min(offsets.len() - 1)])
+            });
         }
     }
 
@@ -506,6 +580,21 @@ mod tests {
         editor.delete_block();
         assert_eq!(editor.document.as_text(), "aefbcd");
         assert_eq!(editor.block, BlockMarkers::default());
+    }
+
+    #[test]
+    fn mark_to_line_end_does_not_include_line_break() {
+        let mut editor = EditorWindow::new(Document::from_text("abc\ndef"), "teste");
+        editor.cursor = Position { line: 0, column: 1 };
+        editor.mark_to_line_end();
+
+        assert_eq!(
+            editor.block.selection_range(),
+            Some((
+                Position { line: 0, column: 1 },
+                Position { line: 0, column: 3 }
+            ))
+        );
     }
 
     #[test]

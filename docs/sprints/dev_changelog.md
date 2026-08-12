@@ -8,4 +8,5 @@ Sprint02 ok
 Sprint03 ok
 Sprint04 ok
 Sprint05 ok
-Sprint06
+Sprint06 ok
+Sprint07 ok

@@ -42,10 +42,10 @@ Esta tabela consolida comandos observados na ajuda e nos testes do Norton Editor
 | `F3 Q` | Quit and don't save | CONFIRMED |
 | `F3 N` | Edit a new file | CONFIRMED pela ajuda; detalhes finos TBD |
 | `F3 X` | Exchange windows | CONFIRMED |
-| `F3 W` | Write text to cursor | Nome CONFIRMED; semântica detalhada TBD |
-| `F3 L` | Load more of the file | Nome CONFIRMED; semântica detalhada TBD |
+| `F3 W` | Write text to cursor | CONFIRMED; grava o bloco marcado em arquivo, com confirmação de sobrescrita |
+| `F3 L` | Load more of the file | CONFIRMED; insere o arquivo completo na posição do cursor |
 | `F3 A` | Append a file | CONFIRMED: solicita arquivo e anexa conteúdo ao final |
-| `F3 C` | Close the output file | Nome CONFIRMED; semântica detalhada TBD |
+| `F3 C` | Close the output file | FORA DO ESCOPO; não implementar |
 
 Barra contextual observada:
 
@@ -88,6 +88,14 @@ linha seguinte inclui a quebra de linha anterior; um marcador no fim da linha n�
 inclui quebra adicional.
 
 `F4 C` copia para o cursor, mantém os marcadores e leva o cursor ao fim da cópia.
+
+## F5 — SEARCH AND WORD WRAP
+
+| Sequência | Função | Estado |
+|---|---|---|
+| `F5 F` | Busca; equivalente a `Ctrl+F` | CONFIRMED |
+| `F5 R` | Substituição; equivalente a `Ctrl+H` | CONFIRMED |
+| `F5 W` | Ativa/desativa Word Wrap | CONFIRMED; ativação insere quebras físicas e desativação preserva o texto |
 `F4 M` move para o cursor, remove os marcadores e leva o cursor ao fim. `F4 D`
 remove o bloco e os marcadores. Uma segunda marcação na mesma posição é ignorada.
 `F4 L` marca do início da linha ao início da próxima, ou até o fim na última linha.

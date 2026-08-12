@@ -28,9 +28,10 @@ Marcadores, realce, copy/move/delete, mark line/end e navegação de marcadores 
 
 `F3 X`, estado independente e `F4 W` para cópia de bloco entre janelas.
 
-## Sprint 07 — Recursos restantes
+## Sprint 07 — Busca, substituição e operações de arquivo
 
-Busca, substituição e comandos clássicos ainda pendentes de levantamento. Nenhum comportamento TBD deve ser inventado.
+Busca (`Ctrl+F`/`F5 F`), substituição (`Ctrl+H`/`F5 R`), `F3 L`, `F3 W`,
+`F4 E` e Word Wrap (`F5 W`). `F3 C` permanece fora do escopo.
 
 ## Sprint 08 — Robustez e fidelidade
 

@@ -87,7 +87,14 @@ pub fn draw_editor_with_context(
             continue;
         }
         if let Some(marker) = window.block.marker_at(line_index) {
-            execute!(stdout, MoveTo(0, row as u16), Print(marker))?;
+            execute!(
+                stdout,
+                MoveTo(0, row as u16),
+                SetBackgroundColor(Color::White),
+                SetForegroundColor(Color::Black),
+                Print(marker),
+                ResetColor
+            )?;
         }
         let line = window.document.line(line_index);
         for (visible_column, character) in line
@@ -118,7 +125,7 @@ pub fn draw_editor_with_context(
     if height > 0 {
         let status = context.map(str::to_owned).unwrap_or_else(|| {
             format!(
-                "Line={}    Col={}                  {}             {}    WW=Off",
+                "Line={}    Col={}                  {}             {}    WW={}",
                 window.cursor.line + 1,
                 window.cursor.column + 1,
                 window.name,
@@ -126,7 +133,8 @@ pub fn draw_editor_with_context(
                     "Insert"
                 } else {
                     "Overwrite"
-                }
+                },
+                if window.word_wrap { "On" } else { "Off" }
             )
         });
         let status: String = status.chars().take(usize::from(width)).collect();
@@ -215,7 +223,14 @@ fn draw_pane(
             break;
         }
         if let Some(marker) = window.block.marker_at(line_index) {
-            execute!(stdout, MoveTo(0, top + row as u16), Print(marker))?;
+            execute!(
+                stdout,
+                MoveTo(0, top + row as u16),
+                SetBackgroundColor(Color::White),
+                SetForegroundColor(Color::Black),
+                Print(marker),
+                ResetColor
+            )?;
         }
         for (visible_column, character) in window
             .document
@@ -248,7 +263,7 @@ fn draw_pane(
 fn status_text(window: &EditorWindow, context: Option<&str>) -> String {
     context.map(str::to_owned).unwrap_or_else(|| {
         format!(
-            "Line={}    Col={}                  {}             {}    WW=Off",
+            "Line={}    Col={}                  {}             {}    WW={}",
             window.cursor.line + 1,
             window.cursor.column + 1,
             window.name,
@@ -256,7 +271,8 @@ fn status_text(window: &EditorWindow, context: Option<&str>) -> String {
                 "Insert"
             } else {
                 "Overwrite"
-            }
+            },
+            if window.word_wrap { "On" } else { "Off" }
         )
     })
 }

@@ -9,7 +9,7 @@ Implementar o estado de comando prefixado `F3 FILE` e operações de arquivo con
 Ao pressionar `F3`, exibir:
 
 ```text
-F3 FILE: Exit-with-save   Quit   Save   eXchange-windows   New   Append   L   W   C
+F3 FILE: Exit-with-save   Quit   Save   eXchange-windows   New   Append   L   W
 ```
 
 Implementar nesta Sprint, se a semântica estiver suficientemente especificada:
@@ -22,6 +22,6 @@ Implementar nesta Sprint, se a semântica estiver suficientemente especificada:
 
 ## TBD explícito
 
-`F3 L`, `F3 W` e `F3 C` não devem receber comportamento inventado. Implementá-los somente se a especificação tiver sido atualizada com detalhes confirmados.
+`F3 L` e `F3 W` não devem receber comportamento inventado. Implementá-los somente se a especificação tiver sido atualizada com detalhes confirmados. `F3 C` está fora do escopo do projeto.
 
 `F3 X` pertence à Sprint 06, embora apareça na barra.
