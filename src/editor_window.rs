@@ -1,3 +1,4 @@
+use crate::block::BlockMarkers;
 use crate::document::{Document, Position};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -30,6 +31,7 @@ pub struct EditorWindow {
     pub viewport: Viewport,
     pub name: String,
     pub insert_mode: bool,
+    pub block: BlockMarkers,
     last_deletion: Option<DeletedText>,
 }
 
@@ -47,6 +49,7 @@ impl EditorWindow {
             viewport: Viewport::default(),
             name: name.into(),
             insert_mode: true,
+            block: BlockMarkers::default(),
             last_deletion: None,
         }
     }
@@ -127,6 +130,89 @@ impl EditorWindow {
 
     pub fn toggle_insert_mode(&mut self) {
         self.insert_mode = !self.insert_mode;
+    }
+
+    pub fn set_block_marker(&mut self) {
+        self.block.set(self.cursor);
+    }
+
+    pub fn remove_block_markers(&mut self) {
+        self.block.clear();
+    }
+
+    pub fn delete_block(&mut self) {
+        let Some((start, end)) = self.block.selection_range() else {
+            return;
+        };
+        self.delete_range(start, end);
+        self.block.clear();
+    }
+
+    pub fn copy_block(&mut self) {
+        let Some((start, end)) = self.block.selection_range() else {
+            return;
+        };
+        let Some(text) = self.document.text_range(start, end) else {
+            return;
+        };
+        self.cursor = self.document.insert_text(self.cursor, &text);
+    }
+
+    pub fn move_block(&mut self) {
+        let Some((start, end)) = self.block.selection_range() else {
+            return;
+        };
+        let Some(text) = self.document.text_range(start, end) else {
+            return;
+        };
+        let destination = self.document.offset_of(self.cursor);
+        let start_offset = self.document.offset_of(start);
+        let end_offset = self.document.offset_of(end);
+        let insertion_offset = if destination <= start_offset {
+            destination
+        } else if destination >= end_offset {
+            destination - (end_offset - start_offset)
+        } else {
+            start_offset
+        };
+        self.delete_range(start, end);
+        self.cursor = self
+            .document
+            .insert_text(self.document.position_at_offset(insertion_offset), &text);
+        self.block.clear();
+    }
+
+    pub fn mark_line(&mut self) {
+        let line = self.cursor.line;
+        let start = Position { line, column: 0 };
+        let end = if line + 1 < self.document.line_count() {
+            Position {
+                line: line + 1,
+                column: 0,
+            }
+        } else {
+            Position {
+                line,
+                column: self.document.line_length(line),
+            }
+        };
+        self.block.first = Some(start);
+        self.block.second = Some(end);
+        if line + 1 == self.document.line_count() {
+            self.cursor = end;
+        }
+    }
+
+    pub fn find_next_marker(&mut self) {
+        let Some(position) = [self.block.first, self.block.second]
+            .into_iter()
+            .flatten()
+            .filter(|position| *position > self.cursor)
+            .min()
+        else {
+            return;
+        };
+        self.cursor = position;
     }
 
     pub fn insert_char(&mut self, character: char) {
@@ -371,5 +457,43 @@ mod tests {
         editor.kill_line();
         assert_eq!(editor.document.line_count(), 1);
         assert_eq!(editor.document.line(0), "");
+    }
+
+    #[test]
+    fn block_markers_can_be_removed_and_block_deleted() {
+        let mut editor = EditorWindow::new(Document::from_text("um dois\nlinha"), "teste");
+        editor.cursor.column = 3;
+        editor.set_block_marker();
+        editor.cursor = Position { line: 1, column: 2 };
+        editor.set_block_marker();
+        assert!(editor.block.contains(Position { line: 0, column: 4 }));
+
+        editor.delete_block();
+
+        assert_eq!(editor.document.as_text(), "um nha");
+        assert_eq!(editor.block, BlockMarkers::default());
+        editor.set_block_marker();
+        editor.remove_block_markers();
+        assert_eq!(editor.block, BlockMarkers::default());
+    }
+
+    #[test]
+    fn block_operations_support_selection_within_one_line() {
+        let mut editor = EditorWindow::new(Document::from_text("abcdef"), "teste");
+        editor.cursor.column = 1;
+        editor.set_block_marker();
+        editor.cursor.column = 4;
+        editor.set_block_marker();
+
+        editor.cursor.column = 6;
+        editor.copy_block();
+
+        assert_eq!(editor.document.as_text(), "abcdefbcd");
+        assert_eq!(editor.cursor.column, 9);
+        assert!(editor.block.contains(Position { line: 0, column: 2 }));
+
+        editor.delete_block();
+        assert_eq!(editor.document.as_text(), "aefbcd");
+        assert_eq!(editor.block, BlockMarkers::default());
     }
 }

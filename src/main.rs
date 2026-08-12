@@ -1,4 +1,5 @@
 mod app;
+mod block;
 mod cli;
 mod document;
 mod editor_window;

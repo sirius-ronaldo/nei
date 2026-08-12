@@ -60,12 +60,12 @@ F3 FILE: Exit-with-save   Quit   Save   eXchange-windows   New   Append   L   W 
 | `F4 S` | Set a block marker | CONFIRMED |
 | `F4 R` | Remove the markers | CONFIRMED |
 | `F4 D` | Delete a block | CONFIRMED pela ajuda |
-| `F4 C` | Copy a block | CONFIRMED pela ajuda |
+| `F4 C` | Copy a block para a posição atual; mantém marcadores e posiciona cursor no fim da cópia | CONFIRMED |
 | `F4 W` | Copy block from window | CONFIRMED |
-| `F4 M` | Move a block | CONFIRMED pela ajuda |
-| `F4 L` | Mark line (w/CR) | CONFIRMED pela ajuda; detalhes de CR deverão ser testados |
+| `F4 M` | Move a block para a posição atual; remove marcadores e posiciona cursor no fim | CONFIRMED |
+| `F4 L` | Marca a linha inteira, incluindo quebra; na última linha marca até o fim | CONFIRMED |
 | `F4 E` | Mark to line end (no CR) | CONFIRMED pela ajuda |
-| `F4 F` | Find a block marker | CONFIRMED pela ajuda; navegação exata TBD |
+| `F4 F` | Localiza o marcador posterior mais próximo do cursor | CONFIRMED |
 
 Barra contextual observada:
 
@@ -78,3 +78,17 @@ F4 BLOCK: Set-marker   Copy   Move   Delete-block   Remove-marker   W   L   E   
 1. Não associar funções por intuição moderna. Ex.: `F4 S` **não** é Save.
 2. Comandos marcados como TBD não devem ter comportamento inventado.
 3. O mapa clássico é parte da identidade funcional do NEI.
+
+### Semântica confirmada dos blocos
+
+Os marcadores delimitam um intervalo semiaberto: a seleção começa na posição
+do marcador inicial e termina imediatamente antes da posição do marcador final.
+A ordem dos marcadores pode ser invertida. Assim, um marcador final no início da
+linha seguinte inclui a quebra de linha anterior; um marcador no fim da linha não
+inclui quebra adicional.
+
+`F4 C` copia para o cursor, mantém os marcadores e leva o cursor ao fim da cópia.
+`F4 M` move para o cursor, remove os marcadores e leva o cursor ao fim. `F4 D`
+remove o bloco e os marcadores. Uma segunda marcação na mesma posição é ignorada.
+`F4 L` marca do início da linha ao início da próxima, ou até o fim na última linha.
+`F4 F` procura o marcador posterior mais próximo da posição atual.

@@ -123,6 +123,20 @@ Segundo `F4 S`:
 
 `F4 R` remove os marcadores.
 
+### 7.4 Operações de bloco — CONFIRMED
+
+O intervalo começa na posição do marcador inicial e termina imediatamente antes
+da posição do marcador final. A ordem dos marcadores pode ser invertida. Um
+marcador no início da linha seguinte inclui a quebra de linha anterior; um
+marcador no fim da linha não inclui quebra adicional.
+
+`F4 C` copia o bloco para o cursor, mantém os marcadores e posiciona o cursor no
+fim da cópia. `F4 M` move o bloco para o cursor, remove os marcadores e posiciona
+o cursor no fim. `F4 D` apaga o bloco e remove os marcadores. `F4 L` marca a linha
+do início até o início da próxima, ou até o fim na última linha. `F4 F` localiza
+o marcador posterior mais próximo do cursor. Uma segunda marcação na mesma posição
+é ignorada.
+
 ## 8. Duas janelas
 
 ### 8.1 Criação/troca — CONFIRMED

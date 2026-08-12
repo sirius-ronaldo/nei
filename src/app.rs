@@ -13,6 +13,7 @@ use crate::terminal::TerminalGuard;
 enum InputMode {
     Editing,
     FileCommand,
+    BlockCommand,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,34 +42,47 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
 
     loop {
         if event::poll(Duration::from_millis(250))? {
-            let Event::Key(key) = event::read()? else {
-                continue;
-            };
-            let result = match mode {
-                InputMode::Editing => handle_editing_key(
-                    &mut editor,
-                    key.code,
-                    key.modifiers,
-                    &mut mode,
-                    &mut context,
-                ),
-                InputMode::FileCommand => handle_file_key(
-                    &mut terminal,
-                    &mut editor,
-                    key.code,
-                    &mut mode,
-                    &mut context,
-                )?,
-            };
-            if result == CommandResult::Quit {
-                break;
+            match event::read()? {
+                Event::Key(key) => {
+                    let result = match mode {
+                        InputMode::Editing => handle_editing_key(
+                            &mut editor,
+                            key.code,
+                            key.modifiers,
+                            &mut mode,
+                            &mut context,
+                        ),
+                        InputMode::FileCommand => handle_file_key(
+                            &mut terminal,
+                            &mut editor,
+                            key.code,
+                            &mut mode,
+                            &mut context,
+                        )?,
+                        InputMode::BlockCommand => {
+                            handle_block_key(&mut editor, key.code, &mut mode, &mut context)
+                        }
+                    };
+                    if result == CommandResult::Quit {
+                        break;
+                    }
+                    draw_editor_with_context(
+                        &mut terminal.stdout,
+                        &mut editor,
+                        crossterm::terminal::size()?,
+                        context.as_deref(),
+                    )?;
+                }
+                Event::Resize(width, height) => {
+                    draw_editor_with_context(
+                        &mut terminal.stdout,
+                        &mut editor,
+                        (width, height),
+                        context.as_deref(),
+                    )?;
+                }
+                _ => {}
             }
-            draw_editor_with_context(
-                &mut terminal.stdout,
-                &mut editor,
-                crossterm::terminal::size()?,
-                context.as_deref(),
-            )?;
         }
     }
 
@@ -89,6 +103,14 @@ fn handle_editing_key(
         *mode = InputMode::FileCommand;
         *context = Some(
             "F3 FILE: Exit-with-save   Quit   Save   eXchange-windows   New   Append   L   W   C"
+                .to_owned(),
+        );
+        return CommandResult::Continue;
+    }
+    if code == KeyCode::F(4) {
+        *mode = InputMode::BlockCommand;
+        *context = Some(
+            "F4 BLOCK: Set-marker   Copy   Move   Delete-block   Remove-marker   W   L   E   F"
                 .to_owned(),
         );
         return CommandResult::Continue;
@@ -120,6 +142,35 @@ fn handle_editing_key(
         (KeyCode::Char('l'), false) if alt => editor.delete_to_line_end(),
         (KeyCode::Char('k'), false) if alt => editor.kill_line(),
         (KeyCode::Char(character), false) if !alt => editor.insert_char(character),
+        _ => {}
+    }
+    CommandResult::Continue
+}
+
+fn handle_block_key(
+    editor: &mut EditorWindow,
+    code: KeyCode,
+    mode: &mut InputMode,
+    context: &mut Option<String>,
+) -> CommandResult {
+    if code == KeyCode::Esc {
+        *mode = InputMode::Editing;
+        *context = None;
+        return CommandResult::Continue;
+    }
+    let KeyCode::Char(command) = code else {
+        return CommandResult::Continue;
+    };
+    *mode = InputMode::Editing;
+    *context = None;
+    match command.to_ascii_uppercase() {
+        'S' => editor.set_block_marker(),
+        'R' => editor.remove_block_markers(),
+        'C' => editor.copy_block(),
+        'M' => editor.move_block(),
+        'D' => editor.delete_block(),
+        'L' => editor.mark_line(),
+        'F' => editor.find_next_marker(),
         _ => {}
     }
     CommandResult::Continue

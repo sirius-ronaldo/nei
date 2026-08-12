@@ -72,7 +72,8 @@ pub fn draw_editor_with_context(
 ) -> io::Result<()> {
     let (width, height) = size;
     let text_height = usize::from(height.saturating_sub(1));
-    window.update_viewport(usize::from(width), text_height);
+    let text_width = usize::from(width.saturating_sub(1));
+    window.update_viewport(text_width, text_height);
     execute!(stdout, MoveTo(0, 0), Clear(ClearType::All))?;
 
     for row in 0..text_height {
@@ -80,14 +81,36 @@ pub fn draw_editor_with_context(
         if line_index >= window.document.line_count() {
             break;
         }
-        let visible: String = window
-            .document
-            .line(line_index)
+        if width == 0 {
+            continue;
+        }
+        if let Some(marker) = window.block.marker_at(line_index) {
+            execute!(stdout, MoveTo(0, row as u16), Print(marker))?;
+        }
+        let line = window.document.line(line_index);
+        for (visible_column, character) in line
             .chars()
             .skip(window.viewport.left_column)
-            .take(usize::from(width))
-            .collect();
-        execute!(stdout, MoveTo(0, row as u16), Print(visible))?;
+            .take(text_width)
+            .enumerate()
+        {
+            let column = window.viewport.left_column + visible_column;
+            let position = crate::document::Position {
+                line: line_index,
+                column,
+            };
+            execute!(
+                stdout,
+                MoveTo((visible_column + 1) as u16, row as u16),
+                SetAttribute(if window.block.contains(position) {
+                    Attribute::Bold
+                } else {
+                    Attribute::NormalIntensity
+                }),
+                Print(character),
+                SetAttribute(Attribute::Reset)
+            )?;
+        }
     }
 
     if height > 0 {
@@ -113,13 +136,17 @@ pub fn draw_editor_with_context(
             .cursor
             .column
             .saturating_sub(window.viewport.left_column)
-            .min(usize::from(width - 1));
+            .min(text_width.saturating_sub(1));
         let y = window
             .cursor
             .line
             .saturating_sub(window.viewport.top_line)
             .min(text_height - 1);
-        execute!(stdout, Show, MoveTo(x as u16, y as u16))?;
+        execute!(
+            stdout,
+            Show,
+            MoveTo((x + 1).min(usize::from(width - 1)) as u16, y as u16)
+        )?;
     }
     stdout.flush()
 }

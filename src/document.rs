@@ -2,7 +2,7 @@ use std::io;
 use std::path::Path;
 
 /// Posição lógica no documento. A coluna é contada em caracteres Unicode.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Position {
     pub line: usize,
     pub column: usize,
@@ -126,6 +126,29 @@ impl Document {
         Some(deleted)
     }
 
+    pub fn text_range(&self, start: Position, end: Position) -> Option<String> {
+        let start_offset = self.position_to_offset(start);
+        let end_offset = self.position_to_offset(end);
+        if start_offset >= end_offset {
+            return None;
+        }
+        Some(
+            self.as_text()
+                .chars()
+                .skip(start_offset)
+                .take(end_offset - start_offset)
+                .collect(),
+        )
+    }
+
+    pub fn offset_of(&self, position: Position) -> usize {
+        self.position_to_offset(position)
+    }
+
+    pub fn position_at_offset(&self, offset: usize) -> Position {
+        self.offset_to_position(offset)
+    }
+
     pub fn as_text(&self) -> String {
         self.lines.join("\n")
     }
@@ -198,7 +221,8 @@ mod tests {
 
     #[test]
     fn save_writes_text_and_clears_modified_flag() {
-        let path = std::env::temp_dir().join(format!("nei-sprint04-{}.txt", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("nei-sprint04-save-{}.txt", std::process::id()));
         let mut document = Document::from_text("conteúdo\nfinal");
         document.modified = true;
         document.save_to_path(&path).expect("file should be saved");
@@ -212,7 +236,8 @@ mod tests {
 
     #[test]
     fn saving_modified_existing_file_creates_nbk_backup() {
-        let path = std::env::temp_dir().join(format!("nei-sprint04-{}.txt", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("nei-sprint04-backup-{}.txt", std::process::id()));
         let backup = path.with_file_name(format!(
             "{}.nbk",
             path.file_name().and_then(|name| name.to_str()).unwrap()
