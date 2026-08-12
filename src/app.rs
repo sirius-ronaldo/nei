@@ -1,91 +1,99 @@
 use std::io;
+use std::path::Path;
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
 use crate::document::Document;
 use crate::editor_window::EditorWindow;
-use crate::screen::{draw_editor, draw_opening_screen};
+use crate::screen::{draw_editor_with_context, draw_opening_screen};
 use crate::terminal::TerminalGuard;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InputMode {
+    Editing,
+    FileCommand,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CommandResult {
+    Continue,
+    Quit,
+}
 
 pub fn run(file: Option<&str>) -> io::Result<()> {
     let mut terminal = TerminalGuard::enter()?;
     let mut editor = match file {
-        Some(path) => EditorWindow::new(Document::from_path(std::path::Path::new(path))?, path),
-        None => match open_from_prompt(&mut terminal) {
-            Ok(editor) => editor,
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => return Ok(()),
-            Err(error) => return Err(error),
+        Some(path) => EditorWindow::new(Document::from_path(Path::new(path))?, path),
+        None => match open_from_prompt(&mut terminal)? {
+            Some(editor) => editor,
+            None => return Ok(()),
         },
     };
-    draw_editor(
+    let mut mode = InputMode::Editing;
+    let mut context = None;
+    draw_editor_with_context(
         &mut terminal.stdout,
         &mut editor,
         crossterm::terminal::size()?,
+        context.as_deref(),
     )?;
 
     loop {
         if event::poll(Duration::from_millis(250))? {
-            match event::read()? {
-                Event::Key(key) if key.code == KeyCode::Esc => break,
-                Event::Key(key) => {
-                    handle_key(&mut editor, key.code, key.modifiers);
-                    draw_editor(
-                        &mut terminal.stdout,
-                        &mut editor,
-                        crossterm::terminal::size()?,
-                    )?;
-                }
-                Event::Resize(width, height) => {
-                    draw_editor(&mut terminal.stdout, &mut editor, (width, height))?;
-                }
-                _ => {}
+            let Event::Key(key) = event::read()? else {
+                continue;
+            };
+            let result = match mode {
+                InputMode::Editing => handle_editing_key(
+                    &mut editor,
+                    key.code,
+                    key.modifiers,
+                    &mut mode,
+                    &mut context,
+                ),
+                InputMode::FileCommand => handle_file_key(
+                    &mut terminal,
+                    &mut editor,
+                    key.code,
+                    &mut mode,
+                    &mut context,
+                )?,
+            };
+            if result == CommandResult::Quit {
+                break;
             }
+            draw_editor_with_context(
+                &mut terminal.stdout,
+                &mut editor,
+                crossterm::terminal::size()?,
+                context.as_deref(),
+            )?;
         }
     }
 
     Ok(())
 }
 
-fn open_from_prompt(terminal: &mut TerminalGuard) -> io::Result<EditorWindow> {
-    let mut input = String::new();
-    loop {
-        let size = crossterm::terminal::size()?;
-        draw_opening_screen(&mut terminal.stdout, size)?;
-        crossterm::execute!(
-            &mut terminal.stdout,
-            crossterm::cursor::MoveTo(0, 0),
-            crossterm::style::Print(format!("Enter file name: {}", input))
-        )?;
-        if event::poll(Duration::from_millis(250))? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Esc => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Interrupted,
-                            "operation cancelled",
-                        ));
-                    }
-                    KeyCode::Enter if !input.is_empty() => {
-                        let document = Document::from_path(std::path::Path::new(&input))?;
-                        return Ok(EditorWindow::new(document, input));
-                    }
-                    KeyCode::Backspace => {
-                        input.pop();
-                    }
-                    KeyCode::Char(character)
-                        if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
-                    {
-                        input.push(character)
-                    }
-                    _ => {}
-                }
-            }
-        }
+fn handle_editing_key(
+    editor: &mut EditorWindow,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+    mode: &mut InputMode,
+    context: &mut Option<String>,
+) -> CommandResult {
+    if code == KeyCode::Esc {
+        return CommandResult::Quit;
     }
-}
+    if code == KeyCode::F(3) {
+        *mode = InputMode::FileCommand;
+        *context = Some(
+            "F3 FILE: Exit-with-save   Quit   Save   eXchange-windows   New   Append   L   W   C"
+                .to_owned(),
+        );
+        return CommandResult::Continue;
+    }
 
-fn handle_key(editor: &mut EditorWindow, code: KeyCode, modifiers: KeyModifiers) {
     let control = modifiers.contains(KeyModifiers::CONTROL);
     let alt = modifiers.contains(KeyModifiers::ALT);
     match (code, control) {
@@ -114,4 +122,141 @@ fn handle_key(editor: &mut EditorWindow, code: KeyCode, modifiers: KeyModifiers)
         (KeyCode::Char(character), false) if !alt => editor.insert_char(character),
         _ => {}
     }
+    CommandResult::Continue
+}
+
+fn handle_file_key(
+    terminal: &mut TerminalGuard,
+    editor: &mut EditorWindow,
+    code: KeyCode,
+    mode: &mut InputMode,
+    context: &mut Option<String>,
+) -> io::Result<CommandResult> {
+    if code == KeyCode::Esc {
+        *mode = InputMode::Editing;
+        *context = None;
+        return Ok(CommandResult::Continue);
+    }
+    let KeyCode::Char(command) = code else {
+        return Ok(CommandResult::Continue);
+    };
+    *mode = InputMode::Editing;
+    *context = None;
+    match command.to_ascii_uppercase() {
+        'E' => {
+            editor.document.save_to_path(Path::new(&editor.name))?;
+            return Ok(CommandResult::Quit);
+        }
+        'S' => editor.document.save_to_path(Path::new(&editor.name))?,
+        'Q' => {
+            if editor.document.modified && !confirm_quit(terminal)? {
+                return Ok(CommandResult::Continue);
+            }
+            return Ok(CommandResult::Quit);
+        }
+        'A' => {
+            if let Some(path) = prompt_file(terminal, false)? {
+                let content = Document::from_path(Path::new(&path))?.as_text();
+                let end = editor.document.line_count().saturating_sub(1);
+                let position = crate::document::Position {
+                    line: end,
+                    column: editor.document.line_length(end),
+                };
+                editor.document.insert_text(position, &content);
+            }
+        }
+        'N' => {
+            // A confirmação explícita evita descartar alterações silenciosamente.
+            if editor.document.modified && !confirm_new_file(terminal, editor)? {
+                return Ok(CommandResult::Continue);
+            }
+            if let Some(path) = prompt_file(terminal, true)? {
+                let document = if Path::new(&path).exists() {
+                    Document::from_path(Path::new(&path))?
+                } else {
+                    Document::empty()
+                };
+                *editor = EditorWindow::new(document, path);
+            }
+        }
+        // F3 X/L/W/C são reservados às sprints que definem suas semânticas.
+        _ => {}
+    }
+    Ok(CommandResult::Continue)
+}
+
+fn confirm_new_file(terminal: &mut TerminalGuard, editor: &mut EditorWindow) -> io::Result<bool> {
+    execute_prompt(terminal, "Save changes before opening a new file? (Y/N)")?;
+    loop {
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('n' | 'N') => return Ok(true),
+                KeyCode::Char('y' | 'Y') => {
+                    editor.document.save_to_path(Path::new(&editor.name))?;
+                    return Ok(true);
+                }
+                KeyCode::Esc => return Ok(false),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn confirm_quit(terminal: &mut TerminalGuard) -> io::Result<bool> {
+    execute_prompt(terminal, "Quit without saving? (Y/N)")?;
+    loop {
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Char('y' | 'Y') => return Ok(true),
+                KeyCode::Char('n' | 'N') | KeyCode::Esc => return Ok(false),
+                _ => {}
+            }
+        }
+    }
+}
+
+fn prompt_file(terminal: &mut TerminalGuard, allow_missing: bool) -> io::Result<Option<String>> {
+    let mut input = String::new();
+    loop {
+        execute_prompt(terminal, &format!("Enter file name: {input}"))?;
+        if let Event::Key(key) = event::read()? {
+            match key.code {
+                KeyCode::Esc => return Ok(None),
+                KeyCode::Enter if !input.is_empty() => {
+                    if allow_missing || Path::new(&input).is_file() {
+                        return Ok(Some(input));
+                    }
+                }
+                KeyCode::Backspace => {
+                    input.pop();
+                }
+                KeyCode::Char(character)
+                    if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
+                {
+                    input.push(character);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn execute_prompt(terminal: &mut TerminalGuard, text: &str) -> io::Result<()> {
+    let size = crossterm::terminal::size()?;
+    draw_opening_screen(&mut terminal.stdout, size)?;
+    crossterm::execute!(
+        &mut terminal.stdout,
+        crossterm::cursor::MoveTo(0, 0),
+        crossterm::style::Print(text)
+    )
+}
+
+fn open_from_prompt(terminal: &mut TerminalGuard) -> io::Result<Option<EditorWindow>> {
+    let Some(path) = prompt_file(terminal, false)? else {
+        return Ok(None);
+    };
+    Ok(Some(EditorWindow::new(
+        Document::from_path(Path::new(&path))?,
+        path,
+    )))
 }

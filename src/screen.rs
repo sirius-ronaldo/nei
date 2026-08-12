@@ -64,10 +64,11 @@ pub fn draw_opening_screen(stdout: &mut Stdout, size: (u16, u16)) -> io::Result<
 
 use crate::editor_window::EditorWindow;
 
-pub fn draw_editor(
+pub fn draw_editor_with_context(
     stdout: &mut Stdout,
     window: &mut EditorWindow,
     size: (u16, u16),
+    context: Option<&str>,
 ) -> io::Result<()> {
     let (width, height) = size;
     let text_height = usize::from(height.saturating_sub(1));
@@ -90,17 +91,19 @@ pub fn draw_editor(
     }
 
     if height > 0 {
-        let status = format!(
-            "Line={}    Col={}                  {}             {}    WW=Off",
-            window.cursor.line + 1,
-            window.cursor.column + 1,
-            window.name,
-            if window.insert_mode {
-                "Insert"
-            } else {
-                "Overwrite"
-            }
-        );
+        let status = context.map(str::to_owned).unwrap_or_else(|| {
+            format!(
+                "Line={}    Col={}                  {}             {}    WW=Off",
+                window.cursor.line + 1,
+                window.cursor.column + 1,
+                window.name,
+                if window.insert_mode {
+                    "Insert"
+                } else {
+                    "Overwrite"
+                }
+            )
+        });
         let status: String = status.chars().take(usize::from(width)).collect();
         execute!(stdout, MoveTo(0, height - 1), Print(status))?;
     }

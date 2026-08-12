@@ -45,6 +45,21 @@ impl Document {
         Ok(Self::from_text(&std::fs::read_to_string(path)?))
     }
 
+    pub fn save_to_path(&mut self, path: &Path) -> io::Result<()> {
+        if self.modified && path.is_file() {
+            let backup = path.with_file_name(format!(
+                "{}.nbk",
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("file")
+            ));
+            std::fs::copy(path, backup)?;
+        }
+        std::fs::write(path, self.as_text())?;
+        self.modified = false;
+        Ok(())
+    }
+
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }
@@ -111,7 +126,7 @@ impl Document {
         Some(deleted)
     }
 
-    fn as_text(&self) -> String {
+    pub fn as_text(&self) -> String {
         self.lines.join("\n")
     }
 
@@ -179,5 +194,38 @@ mod tests {
             Some("X\nY".to_owned())
         );
         assert_eq!(document.line(0), "ab");
+    }
+
+    #[test]
+    fn save_writes_text_and_clears_modified_flag() {
+        let path = std::env::temp_dir().join(format!("nei-sprint04-{}.txt", std::process::id()));
+        let mut document = Document::from_text("conteúdo\nfinal");
+        document.modified = true;
+        document.save_to_path(&path).expect("file should be saved");
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("file should be readable"),
+            "conteúdo\nfinal"
+        );
+        assert!(!document.modified);
+        std::fs::remove_file(path).expect("temporary file should be removed");
+    }
+
+    #[test]
+    fn saving_modified_existing_file_creates_nbk_backup() {
+        let path = std::env::temp_dir().join(format!("nei-sprint04-{}.txt", std::process::id()));
+        let backup = path.with_file_name(format!(
+            "{}.nbk",
+            path.file_name().and_then(|name| name.to_str()).unwrap()
+        ));
+        std::fs::write(&path, "versão antiga").expect("original should be created");
+        let mut document = Document::from_text("versão nova");
+        document.modified = true;
+
+        document.save_to_path(&path).expect("file should be saved");
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "versão nova");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), "versão antiga");
+        std::fs::remove_file(path).expect("original should be removed");
+        std::fs::remove_file(backup).expect("backup should be removed");
     }
 }
