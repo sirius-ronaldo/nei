@@ -6,7 +6,7 @@ use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
 use crate::document::Document;
 use crate::editor_window::EditorWindow;
-use crate::screen::{draw_editor_with_context, draw_opening_screen};
+use crate::screen::{draw_editor_layout, draw_opening_screen};
 use crate::terminal::TerminalGuard;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,11 +31,15 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
             None => return Ok(()),
         },
     };
+    let mut other_editor = None;
+    let mut active_window = 0usize;
     let mut mode = InputMode::Editing;
     let mut context = None;
-    draw_editor_with_context(
+    draw_layout(
         &mut terminal.stdout,
         &mut editor,
+        other_editor.as_mut(),
+        active_window,
         crossterm::terminal::size()?,
         context.as_deref(),
     )?;
@@ -45,38 +49,90 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
             match event::read()? {
                 Event::Key(key) => {
                     let result = match mode {
-                        InputMode::Editing => handle_editing_key(
-                            &mut editor,
-                            key.code,
-                            key.modifiers,
-                            &mut mode,
-                            &mut context,
-                        ),
-                        InputMode::FileCommand => handle_file_key(
-                            &mut terminal,
-                            &mut editor,
-                            key.code,
-                            &mut mode,
-                            &mut context,
-                        )?,
+                        InputMode::Editing => {
+                            let active =
+                                active_editor_mut(&mut editor, &mut other_editor, active_window);
+                            handle_editing_key(
+                                active,
+                                key.code,
+                                key.modifiers,
+                                &mut mode,
+                                &mut context,
+                            )
+                        }
+                        InputMode::FileCommand => {
+                            if matches!(key.code, KeyCode::Char('x' | 'X')) {
+                                exchange_windows(
+                                    &mut terminal,
+                                    &mut other_editor,
+                                    &mut active_window,
+                                )?;
+                                mode = InputMode::Editing;
+                                context = None;
+                                CommandResult::Continue
+                            } else {
+                                let active = active_editor_mut(
+                                    &mut editor,
+                                    &mut other_editor,
+                                    active_window,
+                                );
+                                handle_file_key(
+                                    &mut terminal,
+                                    active,
+                                    key.code,
+                                    &mut mode,
+                                    &mut context,
+                                )?
+                            }
+                        }
                         InputMode::BlockCommand => {
-                            handle_block_key(&mut editor, key.code, &mut mode, &mut context)
+                            let source = if active_window == 0 {
+                                other_editor.as_ref()
+                            } else {
+                                Some(&editor)
+                            }
+                            .cloned();
+                            let active =
+                                active_editor_mut(&mut editor, &mut other_editor, active_window);
+                            handle_block_key(
+                                active,
+                                source.as_ref(),
+                                key.code,
+                                &mut mode,
+                                &mut context,
+                            )
                         }
                     };
                     if result == CommandResult::Quit {
+                        if other_editor.is_some() {
+                            close_active_window(&mut editor, &mut other_editor, &mut active_window);
+                            draw_layout(
+                                &mut terminal.stdout,
+                                &mut editor,
+                                other_editor.as_mut(),
+                                active_window,
+                                crossterm::terminal::size()?,
+                                context.as_deref(),
+                            )?;
+                            continue;
+                        }
                         break;
                     }
-                    draw_editor_with_context(
+                    draw_layout(
                         &mut terminal.stdout,
                         &mut editor,
+                        other_editor.as_mut(),
+                        active_window,
                         crossterm::terminal::size()?,
                         context.as_deref(),
                     )?;
                 }
                 Event::Resize(width, height) => {
-                    draw_editor_with_context(
+                    draw_layout(
                         &mut terminal.stdout,
                         &mut editor,
+                        other_editor.as_mut(),
+                        active_window,
                         (width, height),
                         context.as_deref(),
                     )?;
@@ -87,6 +143,29 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
     }
 
     Ok(())
+}
+
+fn active_editor_mut<'a>(
+    first: &'a mut EditorWindow,
+    second: &'a mut Option<EditorWindow>,
+    active: usize,
+) -> &'a mut EditorWindow {
+    if active == 0 {
+        first
+    } else {
+        second.as_mut().expect("janela ativa deve existir")
+    }
+}
+
+fn draw_layout(
+    stdout: &mut std::io::Stdout,
+    first: &mut EditorWindow,
+    second: Option<&mut EditorWindow>,
+    active: usize,
+    size: (u16, u16),
+    context: Option<&str>,
+) -> io::Result<()> {
+    draw_editor_layout(stdout, first, second, active, size, context)
 }
 
 fn handle_editing_key(
@@ -149,6 +228,7 @@ fn handle_editing_key(
 
 fn handle_block_key(
     editor: &mut EditorWindow,
+    other_editor: Option<&EditorWindow>,
     code: KeyCode,
     mode: &mut InputMode,
     context: &mut Option<String>,
@@ -171,6 +251,11 @@ fn handle_block_key(
         'D' => editor.delete_block(),
         'L' => editor.mark_line(),
         'F' => editor.find_next_marker(),
+        'W' => {
+            if let Some(other) = other_editor {
+                editor.copy_block_from(other);
+            }
+        }
         _ => {}
     }
     CommandResult::Continue
@@ -230,10 +315,42 @@ fn handle_file_key(
                 *editor = EditorWindow::new(document, path);
             }
         }
-        // F3 X/L/W/C são reservados às sprints que definem suas semânticas.
+        // F3 L/W/C permanecem reservados às sprints que definem sua semântica.
         _ => {}
     }
     Ok(CommandResult::Continue)
+}
+
+fn exchange_windows(
+    terminal: &mut TerminalGuard,
+    second: &mut Option<EditorWindow>,
+    active: &mut usize,
+) -> io::Result<()> {
+    if second.is_none() {
+        if let Some(path) = prompt_file(terminal, false)? {
+            *second = Some(EditorWindow::new(
+                Document::from_path(Path::new(&path))?,
+                path,
+            ));
+            *active = 1;
+        }
+    } else {
+        *active = 1 - *active;
+    }
+    Ok(())
+}
+
+fn close_active_window(
+    first: &mut EditorWindow,
+    second: &mut Option<EditorWindow>,
+    active: &mut usize,
+) {
+    if *active == 0 {
+        *first = second.take().expect("a segunda janela deve existir");
+    } else {
+        *second = None;
+        *active = 0;
+    }
 }
 
 fn confirm_new_file(terminal: &mut TerminalGuard, editor: &mut EditorWindow) -> io::Result<bool> {

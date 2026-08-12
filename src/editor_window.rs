@@ -158,6 +158,17 @@ impl EditorWindow {
         self.cursor = self.document.insert_text(self.cursor, &text);
     }
 
+    /// Copia o bloco da outra janela para a posição atual.
+    pub fn copy_block_from(&mut self, source: &EditorWindow) {
+        let Some((start, end)) = source.block.selection_range() else {
+            return;
+        };
+        let Some(text) = source.document.text_range(start, end) else {
+            return;
+        };
+        self.cursor = self.document.insert_text(self.cursor, &text);
+    }
+
     pub fn move_block(&mut self) {
         let Some((start, end)) = self.block.selection_range() else {
             return;
@@ -495,5 +506,22 @@ mod tests {
         editor.delete_block();
         assert_eq!(editor.document.as_text(), "aefbcd");
         assert_eq!(editor.block, BlockMarkers::default());
+    }
+
+    #[test]
+    fn block_can_be_copied_from_another_window() {
+        let mut source = EditorWindow::new(Document::from_text("origem"), "origem");
+        source.cursor.column = 1;
+        source.set_block_marker();
+        source.cursor.column = 4;
+        source.set_block_marker();
+        let mut destination = EditorWindow::new(Document::from_text("destino"), "destino");
+        destination.cursor.column = 2;
+
+        destination.copy_block_from(&source);
+
+        assert_eq!(destination.document.as_text(), "derigstino");
+        assert_eq!(destination.cursor.column, 5);
+        assert_eq!(source.document.as_text(), "origem");
     }
 }

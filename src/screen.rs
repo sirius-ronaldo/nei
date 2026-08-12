@@ -2,7 +2,9 @@ use std::io::{self, Stdout, Write};
 
 use crossterm::cursor::{MoveTo, Show};
 use crossterm::execute;
-use crossterm::style::{Attribute, Print, SetAttribute};
+use crossterm::style::{
+    Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor,
+};
 use crossterm::terminal::{Clear, ClearType};
 
 const IDENTITY_LINES: [&str; 4] = [
@@ -128,7 +130,7 @@ pub fn draw_editor_with_context(
             )
         });
         let status: String = status.chars().take(usize::from(width)).collect();
-        execute!(stdout, MoveTo(0, height - 1), Print(status))?;
+        draw_status(stdout, 0, height - 1, width, &status)?;
     }
 
     if width > 0 && text_height > 0 {
@@ -149,6 +151,161 @@ pub fn draw_editor_with_context(
         )?;
     }
     stdout.flush()
+}
+
+pub fn draw_editor_layout(
+    stdout: &mut Stdout,
+    first: &mut EditorWindow,
+    second: Option<&mut EditorWindow>,
+    active: usize,
+    size: (u16, u16),
+    context: Option<&str>,
+) -> io::Result<()> {
+    let (width, height) = size;
+    execute!(stdout, MoveTo(0, 0), Clear(ClearType::All))?;
+    let Some(second) = second else {
+        return draw_editor_with_context(stdout, first, size, context);
+    };
+
+    let first_height = usize::from(height / 2).max(1);
+    let second_height = usize::from(height).saturating_sub(first_height).max(1);
+    let status = if active == 0 {
+        status_text(first, context)
+    } else {
+        status_text(second, context)
+    };
+    draw_pane(stdout, first, width, first_height as u16, 0, true)?;
+    draw_pane(
+        stdout,
+        second,
+        width,
+        second_height as u16,
+        first_height as u16,
+        false,
+    )?;
+    draw_status(stdout, 0, first_height as u16 - 1, width, &status)?;
+    draw_active_cursor(
+        stdout,
+        if active == 0 { first } else { second },
+        active,
+        width,
+        first_height as u16,
+    )?;
+    stdout.flush()
+}
+
+fn draw_pane(
+    stdout: &mut Stdout,
+    window: &mut EditorWindow,
+    width: u16,
+    pane_height: u16,
+    top: u16,
+    reserve_status: bool,
+) -> io::Result<()> {
+    let text_height = if reserve_status {
+        usize::from(pane_height.saturating_sub(1))
+    } else {
+        usize::from(pane_height)
+    };
+    let text_width = usize::from(width.saturating_sub(1));
+    window.update_viewport(text_width, text_height);
+    for row in 0..text_height {
+        let line_index = window.viewport.top_line + row;
+        if line_index >= window.document.line_count() || width == 0 {
+            break;
+        }
+        if let Some(marker) = window.block.marker_at(line_index) {
+            execute!(stdout, MoveTo(0, top + row as u16), Print(marker))?;
+        }
+        for (visible_column, character) in window
+            .document
+            .line(line_index)
+            .chars()
+            .skip(window.viewport.left_column)
+            .take(text_width)
+            .enumerate()
+        {
+            let position = crate::document::Position {
+                line: line_index,
+                column: window.viewport.left_column + visible_column,
+            };
+            execute!(
+                stdout,
+                MoveTo((visible_column + 1) as u16, top + row as u16),
+                SetAttribute(if window.block.contains(position) {
+                    Attribute::Bold
+                } else {
+                    Attribute::NormalIntensity
+                }),
+                Print(character),
+                SetAttribute(Attribute::Reset)
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn status_text(window: &EditorWindow, context: Option<&str>) -> String {
+    context.map(str::to_owned).unwrap_or_else(|| {
+        format!(
+            "Line={}    Col={}                  {}             {}    WW=Off",
+            window.cursor.line + 1,
+            window.cursor.column + 1,
+            window.name,
+            if window.insert_mode {
+                "Insert"
+            } else {
+                "Overwrite"
+            }
+        )
+    })
+}
+
+fn draw_active_cursor(
+    stdout: &mut Stdout,
+    window: &mut EditorWindow,
+    active: usize,
+    width: u16,
+    separator: u16,
+) -> io::Result<()> {
+    if width == 0 {
+        return Ok(());
+    }
+    let pane_top = if active == 0 { 0 } else { separator };
+    let pane_height = if active == 0 {
+        separator.saturating_sub(1)
+    } else {
+        u16::MAX.saturating_sub(separator)
+    };
+    let text_height = usize::from(pane_height);
+    if text_height == 0 {
+        return Ok(());
+    }
+    let x = window
+        .cursor
+        .column
+        .saturating_sub(window.viewport.left_column)
+        .min(usize::from(width.saturating_sub(2)));
+    let y = window
+        .cursor
+        .line
+        .saturating_sub(window.viewport.top_line)
+        .min(text_height - 1);
+    execute!(stdout, Show, MoveTo((x + 1) as u16, pane_top + y as u16))
+}
+
+fn draw_status(stdout: &mut Stdout, x: u16, y: u16, width: u16, text: &str) -> io::Result<()> {
+    let width = usize::from(width);
+    let content: String = text.chars().take(width).collect();
+    let line = format!("{content:<width$}");
+    execute!(
+        stdout,
+        MoveTo(x, y),
+        SetBackgroundColor(Color::White),
+        SetForegroundColor(Color::Black),
+        Print(line),
+        ResetColor
+    )
 }
 
 #[cfg(test)]
