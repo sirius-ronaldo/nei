@@ -93,12 +93,34 @@ Para instalar o executável pelo Cargo:
 cargo install --path .
 ```
 
+Para gerar um pacote Debian (`.deb`) na arquitetura do ambiente atual, com
+Rust e `cargo-deb` instalados:
+
+```bash
+cargo deb
+```
+
+O pacote será gerado em `target/debian/`. O nome pode variar conforme a
+versão e a arquitetura, por exemplo `nei_1.0.0-1_amd64.deb`. Para instalar:
+
+```bash
+sudo apt install ./target/debian/nei_*.deb
+```
+
+O pacote instala o executável em `/usr/bin/nei` e a documentação em
+`/usr/share/doc/nei/`. Depois da instalação, execute `nei` ou `nei arquivo.txt`.
+Para remover o pacote:
+
+```bash
+sudo apt remove nei
+```
+
 Consulte `nei --help` para as opções da linha de comando e pressione `F1` dentro do
 editor para consultar os comandos de teclado.
 
 ## Uso
 
-Quando o editor estiver implementado:
+Para abrir um arquivo existente ou criar um novo documento:
 
 ```bash
 nei arquivo.txt
@@ -116,7 +138,7 @@ exibirá o fluxo clássico de solicitação:
 Enter file name:
 ```
 
-Na Sprint 00, o binário é apenas um esqueleto compilável; a interface full-screen começa na Sprint 01.
+O NEI 1.0.0 é uma versão estável com interface full-screen para terminal.
 
 ## Desenvolvimento incremental
 

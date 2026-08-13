@@ -12,3 +12,19 @@ categories = ["command-line-utilities", "text-editors"]
 
 [dependencies]
 crossterm = "0.29"
+
+[package.metadata.deb]
+maintainer = "Ronaldo F Morais <sirius.ronaldo@gmail.com>"
+section = "editors"
+priority = "optional"
+license-file = ["LICENSE", "0"]
+extended-description = """
+NEI — Norton Editor Inspired is a small, fast and retro full-screen
+text editor for the Linux terminal, written in Rust and inspired by
+the keyboard-oriented workflow of Norton Editor 1.x.
+"""
+assets = [
+    ["target/release/nei", "usr/bin/nei", "755"],
+    ["README.md", "usr/share/doc/nei/README.md", "644"],
+    ["LICENSE", "usr/share/doc/nei/LICENSE", "644"],
+]

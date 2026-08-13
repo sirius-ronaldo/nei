@@ -1,0 +1,10 @@
+Package: nei
+Version: @VERSION@
+Section: editors
+Priority: optional
+Architecture: @ARCHITECTURE@
+Maintainer: Ronaldo F Morais <sirius.ronaldo@gmail.com>
+Depends: libc6
+Description: editor de textos de terminal inspirado no Norton Editor
+ NEI é um editor de textos full-screen para terminal Linux, orientado por
+ teclado e inspirado no fluxo de trabalho clássico do Norton Editor 1.3.
