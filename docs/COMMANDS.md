@@ -2,6 +2,12 @@
 
 Esta tabela consolida comandos observados na ajuda e nos testes do Norton Editor 1.3 usados como referência para o NEI.
 
+## Help
+
+| Tecla | Função | Estado |
+|---|---|---|
+| `F1` | Exibe a tela de ajuda; qualquer tecla retorna à edição | CONFIRMED |
+
 ## Cursor control
 
 | Tecla | Função | Estado |

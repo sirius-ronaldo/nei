@@ -68,6 +68,13 @@ Campos observados:
 - modo de edição (`Insert`; comportamento alternativo será detalhado em Sprint própria);
 - estado de Word Wrap (`WW=Off` observado).
 
+### 4.3 Ajuda — `F1`
+
+`F1` abre uma única tela de ajuda, sem rolagem, adaptada aos comandos realmente
+implementados no editor. Comandos equivalentes são exibidos lado a lado, como
+`Ctrl+F`/`F5 F` e `Ctrl+H`/`F5 R`. Qualquer tecla fecha a tela e retorna à edição.
+A barra de status normal informa `F1-Help` junto dos demais campos.
+
 ## 5. Cursor — CONFIRMED/OBSERVED
 
 O cursor é um retângulo/bloco ocupando a célula atual. O NEI deve solicitar cursor em bloco ao terminal e possuir fallback visual adequado quando necessário.

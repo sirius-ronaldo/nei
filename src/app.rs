@@ -6,7 +6,7 @@ use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
 use crate::document::{Document, TextMatch};
 use crate::editor_window::EditorWindow;
-use crate::screen::{draw_editor_layout, draw_opening_screen};
+use crate::screen::{draw_editor_layout, draw_help, draw_opening_screen};
 use crate::terminal::TerminalGuard;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,6 +17,7 @@ enum InputMode {
     Search,
     Replace,
     F5Command,
+    Help,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -76,6 +77,23 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
             match event::read()? {
                 Event::Key(key) => {
                     let mut key = key;
+                    if mode == InputMode::Help {
+                        mode = InputMode::Editing;
+                        draw_layout(
+                            &mut terminal.stdout,
+                            &mut editor,
+                            other_editor.as_mut(),
+                            active_window,
+                            crossterm::terminal::size()?,
+                            context.as_deref(),
+                        )?;
+                        continue;
+                    }
+                    if mode == InputMode::Editing && key.code == KeyCode::F(1) {
+                        mode = InputMode::Help;
+                        draw_help(&mut terminal.stdout, crossterm::terminal::size()?)?;
+                        continue;
+                    }
                     if mode == InputMode::F5Command {
                         match key.code {
                             KeyCode::Char('f' | 'F') | KeyCode::Char('r' | 'R') => {
@@ -300,6 +318,7 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
                             )
                         }
                         InputMode::F5Command => CommandResult::Continue,
+                        InputMode::Help => CommandResult::Continue,
                     };
                     if result == CommandResult::Quit {
                         if other_editor.is_some() {
@@ -326,14 +345,18 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
                     )?;
                 }
                 Event::Resize(width, height) => {
-                    draw_layout(
-                        &mut terminal.stdout,
-                        &mut editor,
-                        other_editor.as_mut(),
-                        active_window,
-                        (width, height),
-                        context.as_deref(),
-                    )?;
+                    if mode == InputMode::Help {
+                        draw_help(&mut terminal.stdout, (width, height))?;
+                    } else {
+                        draw_layout(
+                            &mut terminal.stdout,
+                            &mut editor,
+                            other_editor.as_mut(),
+                            active_window,
+                            (width, height),
+                            context.as_deref(),
+                        )?;
+                    }
                 }
                 _ => {}
             }
