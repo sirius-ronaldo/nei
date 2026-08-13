@@ -141,7 +141,7 @@ o marcador posterior mais próximo do cursor. Uma segunda marcação na mesma po
 
 ### 8.1 Criação/troca — CONFIRMED
 
-Com um arquivo em edição, `F3 X` disponibiliza a segunda janela. Quando ela ainda não possui arquivo, apresenta prompt de nome de arquivo equivalente ao fluxo inicial.
+Com um arquivo em edição, `F3 X` disponibiliza a segunda janela. Quando ela ainda não possui arquivo, apresenta prompt de nome de arquivo equivalente ao fluxo inicial. Se o nome informado não existir, a segunda janela abre como documento vazio e mantém o nome para gravação posterior.
 
 Com as duas janelas abertas, `F3 X` alterna a janela ativa.
 
@@ -235,7 +235,7 @@ restantes; `ESC` encerra o modo. A barra de status informa esses comandos.
 
 Se a substituição começar sem ocorrência, retorna imediatamente à edição, sem
 mensagem. Se as ocorrências acabarem durante o processo, a barra exibe somente
-`No more occurrences`; o modo permanece ativo até `ESC`, e `Enter`, `S` e `A` ficam
+`No more occurrences   ESC Edit`; o modo permanece ativo até `ESC`, e `Enter`, `S` e `A` ficam
 sem efeito.
 
 Substituição por texto vazio é válida. O viewport acompanha a ocorrência atual, os

@@ -46,8 +46,8 @@ de resize durante operações e demais atalhos ainda não especificados.
   alteração; marcadores não são alterados.
 - Deve informar continuamente a contagem no formato `3 occurrence(s) replaced`.
 - Se não houver ocorrência ao iniciar, retorna à edição sem mensagem. Quando as
-  ocorrências acabam durante o processo, exibe somente `No more occurrences`, mantém
-  o modo ativo até `ESC` e inibe `Enter`, `S` e `A`.
+  ocorrências acabam durante o processo, exibe somente `No more occurrences   ESC Edit`,
+  mantém o modo ativo até `ESC` e inibe `Enter`, `S` e `A`.
 - O comportamento para texto substituto contendo quebras de linha e o texto exato
   das mensagens ainda precisam ser definidos antes da implementação.
 

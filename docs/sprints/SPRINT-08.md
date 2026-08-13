@@ -23,3 +23,6 @@ Parar de adicionar recursos e estabilizar o editor.
 ## Qualidade
 
 Ativar/fortalecer Clippy sem warnings e ampliar testes automatizados do núcleo.
+
+O roteiro para validação manual por usuário não desenvolvedor está em
+[`SPRINT-08-MANUAL.md`](SPRINT-08-MANUAL.md).

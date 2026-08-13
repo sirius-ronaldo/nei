@@ -42,7 +42,14 @@ struct ReplaceState {
 pub fn run(file: Option<&str>) -> io::Result<()> {
     let mut terminal = TerminalGuard::enter()?;
     let mut editor = match file {
-        Some(path) => EditorWindow::new(Document::from_path(Path::new(path))?, path),
+        Some(path) => {
+            let document = if Path::new(path).is_file() {
+                Document::from_path(Path::new(path))?
+            } else {
+                Document::empty()
+            };
+            EditorWindow::new(document, path)
+        }
         None => match open_from_prompt(&mut terminal)? {
             Some(editor) => editor,
             None => return Ok(()),
@@ -195,10 +202,9 @@ pub fn run(file: Option<&str>) -> io::Result<()> {
                                         true,
                                         state.case_sensitive,
                                     );
-                                    if state.current.is_some() {
-                                        active.cursor = active
-                                            .document
-                                            .position_at_offset(state.current.unwrap().start);
+                                    if let Some(found) = state.current {
+                                        active.cursor =
+                                            active.document.position_at_offset(found.start);
                                         context = Some(replace_context(&state));
                                         replacement = Some(state);
                                         mode = InputMode::Replace;
@@ -486,12 +492,12 @@ fn handle_search_key(
                 exit = true;
             }
         }
-        KeyCode::Right | KeyCode::Down | KeyCode::Enter => {
-            if !find_from_cursor(editor, search, true, true) {
-                *mode = InputMode::Editing;
-                *context = None;
-                exit = true;
-            }
+        KeyCode::Right | KeyCode::Down | KeyCode::Enter
+            if !find_from_cursor(editor, search, true, true) =>
+        {
+            *mode = InputMode::Editing;
+            *context = None;
+            exit = true;
         }
         _ => {}
     }
@@ -503,7 +509,7 @@ fn handle_search_key(
 
 fn replace_context(state: &ReplaceState) -> String {
     if state.exhausted {
-        return "No more occurrences".to_owned();
+        return "No more occurrences   ESC Edit".to_owned();
     }
     format!(
         "Replace: {} -> {} [{}]  ENTER Replace  S Skip  A All  ESC Exit  ({})",
@@ -667,10 +673,10 @@ fn handle_file_key(
             }
         }
         'L' => {
-            if let Some(path) = prompt_file_name(terminal, "Enter file name: ")? {
-                if let Ok(content) = std::fs::read_to_string(Path::new(&path)) {
-                    editor.cursor = editor.document.insert_text(editor.cursor, &content);
-                }
+            if let Some(path) = prompt_file_name(terminal, "Enter file name: ")?
+                && let Ok(content) = std::fs::read_to_string(Path::new(&path))
+            {
+                editor.cursor = editor.document.insert_text(editor.cursor, &content);
             }
         }
         'W' => {
@@ -712,11 +718,13 @@ fn exchange_windows(
     active: &mut usize,
 ) -> io::Result<()> {
     if second.is_none() {
-        if let Some(path) = prompt_file(terminal, false)? {
-            *second = Some(EditorWindow::new(
-                Document::from_path(Path::new(&path))?,
-                path,
-            ));
+        if let Some(path) = prompt_file_name(terminal, "Enter file name: ")? {
+            let document = if Path::new(&path).is_file() {
+                Document::from_path(Path::new(&path))?
+            } else {
+                Document::empty()
+            };
+            *second = Some(EditorWindow::new(document, path));
             *active = 1;
         }
     } else {
@@ -834,10 +842,10 @@ fn prompt_width(terminal: &mut TerminalGuard, label: &str) -> io::Result<Option<
         let Some(input) = prompt_text(terminal, label, "")? else {
             return Ok(None);
         };
-        if let Ok(width) = input.trim().parse::<usize>() {
-            if width > 0 {
-                return Ok(Some(width));
-            }
+        if let Ok(width) = input.trim().parse::<usize>()
+            && width > 0
+        {
+            return Ok(Some(width));
         }
     }
 }
@@ -867,11 +875,13 @@ fn execute_prompt(terminal: &mut TerminalGuard, text: &str) -> io::Result<()> {
 }
 
 fn open_from_prompt(terminal: &mut TerminalGuard) -> io::Result<Option<EditorWindow>> {
-    let Some(path) = prompt_file(terminal, false)? else {
+    let Some(path) = prompt_file_name(terminal, "Enter file name: ")? else {
         return Ok(None);
     };
-    Ok(Some(EditorWindow::new(
-        Document::from_path(Path::new(&path))?,
-        path,
-    )))
+    let document = if Path::new(&path).is_file() {
+        Document::from_path(Path::new(&path))?
+    } else {
+        Document::empty()
+    };
+    Ok(Some(EditorWindow::new(document, path)))
 }

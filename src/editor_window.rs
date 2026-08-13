@@ -492,6 +492,19 @@ mod tests {
     }
 
     #[test]
+    fn viewport_keeps_cursor_visible_after_resize() {
+        let mut editor =
+            EditorWindow::new(Document::from_text("linha\n".repeat(20).as_str()), "teste");
+        editor.cursor = Position {
+            line: 19,
+            column: 4,
+        };
+        editor.update_viewport(10, 5);
+        assert!(editor.cursor.line >= editor.viewport.top_line);
+        assert!(editor.cursor.line < editor.viewport.top_line + editor.viewport.height);
+    }
+
+    #[test]
     fn insert_delete_and_single_undelete_work() {
         let mut editor = EditorWindow::new(Document::from_text("abc"), "teste");
         editor.cursor.column = 1;

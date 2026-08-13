@@ -403,4 +403,42 @@ mod tests {
         document.wrap_lines(6);
         assert_eq!(document.as_text(), "um \ndois \ntres");
     }
+
+    #[test]
+    fn long_utf8_lines_keep_character_positions() {
+        let text = "áéíóú".repeat(20_000);
+        let document = Document::from_text(&text);
+        assert_eq!(document.line_count(), 1);
+        assert_eq!(document.line_length(0), 100_000);
+        assert_eq!(
+            document.clamp(Position {
+                line: 0,
+                column: 100_000
+            }),
+            Position {
+                line: 0,
+                column: 100_000
+            }
+        );
+    }
+
+    #[test]
+    fn reading_missing_or_invalid_files_returns_an_error() {
+        let missing =
+            std::env::temp_dir().join(format!("nei-sprint08-missing-{}", std::process::id()));
+        assert!(Document::from_path(&missing).is_err());
+
+        let invalid =
+            std::env::temp_dir().join(format!("nei-sprint08-invalid-{}", std::process::id()));
+        std::fs::write(&invalid, [0xff, 0xfe]).expect("invalid fixture should be created");
+        assert!(Document::from_path(&invalid).is_err());
+        std::fs::remove_file(invalid).expect("invalid fixture should be removed");
+    }
+
+    #[test]
+    fn writing_to_a_directory_returns_an_error() {
+        let mut document = Document::from_text("conteúdo");
+        document.modified = true;
+        assert!(document.save_to_path(std::path::Path::new("/tmp")).is_err());
+    }
 }
