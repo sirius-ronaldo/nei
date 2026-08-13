@@ -10,7 +10,7 @@ use crossterm::terminal::{Clear, ClearType};
 const IDENTITY_LINES: [&str; 4] = [
     "NEI - Norton Editor Inspired",
     "A Programmer's Full-Screen Editor",
-    "Version 0.0.1",
+    concat!("Version ", env!("CARGO_PKG_VERSION")),
     "By Ronaldo F Morais, Brazil, 2026",
 ];
 
@@ -397,7 +397,10 @@ mod tests {
     #[test]
     fn opening_screen_uses_the_nei_identity() {
         assert_eq!(IDENTITY_LINES[0], "NEI - Norton Editor Inspired");
-        assert!(IDENTITY_LINES[2].starts_with("Version "));
+        assert_eq!(
+            IDENTITY_LINES[2],
+            concat!("Version ", env!("CARGO_PKG_VERSION"))
+        );
     }
 
     #[test]
