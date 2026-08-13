@@ -18,7 +18,7 @@ const HELP_ROWS: [(&str, &str); 22] = [
     ("NEI - HELP", "F1-Help"),
     ("", ""),
     ("CURSOR CONTROL", "FILE COMMANDS"),
-    ("← → ↑ ↓       Move cursor", "F3 E    Save and exit"),
+    ("← → ↑ ↓        Move cursor", "F3 E    Save and exit"),
     ("Ctrl+←/Ctrl+→  Move by word", "F3 S    Save"),
     (
         "Home/End       Line beginning/end",
@@ -48,7 +48,7 @@ const HELP_ROWS: [(&str, &str); 22] = [
         "F4 L/E/F Mark line/end/find marker",
     ),
     (
-        "Ctrl+F or F5 F  Find   Ctrl+H or F5 R  Replace   F5 W  Word Wrap",
+        "(Ctrl+F or F5 F  Find)  (Ctrl+H or F5 R  Replace)   (F5 W  Word Wrap)",
         "",
     ),
     ("Press any key to return to the editor.", ""),

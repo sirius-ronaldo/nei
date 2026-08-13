@@ -23,10 +23,17 @@ pub fn run() -> io::Result<()> {
 fn print_help() {
     println!("{NAME}");
     println!();
+    println!("Terminal text editor inspired by Norton Editor 1.3.");
+    println!();
     println!("Usage:");
     println!("  nei [FILE]");
     println!("  nei --help");
     println!("  nei --version");
     println!();
-    println!("The full-screen editor starts with the terminal shell in Sprint 01.");
+    println!("Options:");
+    println!("  -h, --help       Show this help");
+    println!("  -V, --version    Show the version");
+    println!();
+    println!("If FILE does not exist, NEI opens an empty document with that name.");
+    println!("Press F1 inside the editor for the keyboard command reference.");
 }

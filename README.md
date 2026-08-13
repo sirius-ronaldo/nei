@@ -6,7 +6,7 @@
 
 O objetivo não é criar uma IDE moderna com aparência retrô. A meta é preservar a experiência de um editor full-screen simples, rápido e essencialmente controlado pelo teclado, implementado sobre uma base moderna, segura e adequada ao Linux atual.
 
-> **Project status:** early development. The repository is public, but contribution guidelines will be published only after the first stable release.
+> **Project status:** stable 1.0.0 release. The repository is public; contribution guidelines will be published after the first stable release cycle.
 
 ## Objetivos
 
@@ -72,7 +72,31 @@ A interface e os atalhos devem preservar a experiência clássica; a implementa�
 
 Frameworks de widgets como Ratatui não fazem parte da arquitetura inicial. O NEI precisa de controle direto das células do terminal para preservar sua identidade visual.
 
-## Uso previsto
+## Instalação e build
+
+Com Rust instalado, compile a versão de release:
+
+```bash
+cargo build --release
+```
+
+O executável estará em `target/release/nei`. Ele pode ser executado diretamente ou
+copiado para um diretório presente no `PATH`:
+
+```bash
+./target/release/nei arquivo.txt
+```
+
+Para instalar o executável pelo Cargo:
+
+```bash
+cargo install --path .
+```
+
+Consulte `nei --help` para as opções da linha de comando e pressione `F1` dentro do
+editor para consultar os comandos de teclado.
+
+## Uso
 
 Quando o editor estiver implementado:
 
